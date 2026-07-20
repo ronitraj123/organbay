@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Env files (never commit real secrets)
+.env
+.env.local
+backend/.env
+frontend/.env.local
+
+# Python
+ml-service/venv/
+ml-service/__pycache__/
+ml-service/**/__pycache__/
+*.pyc
+
+# Build output
+frontend/dist/
+
+# OS
+.DS_Store
