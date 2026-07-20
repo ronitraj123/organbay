@@ -5,6 +5,7 @@ const Recipient = require('../models/Recipient');
 const Transport = require('../models/Transport');
 const { logAction } = require('../services/auditLogger');
 const { startSimulatedTransport } = require('../sockets/transportSimulator');
+const { runMatchingForOrgan } = require('../services/matchingService');
 
 async function listMatches(req, res) {
   const filter = {};
@@ -105,9 +106,24 @@ async function acceptMatch(req, res) {
   }
 }
 
+/**
+ * Rejecting a match resolves this ONE candidate pairing -- but an organ
+ * can be proposed to several recipients at once (up to the candidate
+ * limit in matchingService.js), so the organ must stay 'proposed' as
+ * long as any other proposal for it is still pending. Only once EVERY
+ * proposed match for this organ has been resolved (rejected) do we
+ * requeue the organ back to 'available' -- and re-run the matching
+ * engine immediately so it doesn't just sit invisible until some other
+ * event (like a new recipient registering) happens to reconsider it.
+ *
+ * Without this, a rejected match would leave its organ permanently
+ * stuck at 'proposed': invisible on the Available Organs list and
+ * excluded from all future matching, since matching only ever queries
+ * status: 'available' organs.
+ */
 async function rejectMatch(req, res) {
   try {
-    const match = await Match.findById(req.params.id);
+    const match = await Match.findById(req.params.id).populate('organ');
     if (!match) return res.status(404).json({ error: 'Match not found.' });
     if (match.status !== 'proposed') {
       return res.status(409).json({ error: `Match is already ${match.status}.` });
@@ -124,8 +140,41 @@ async function rejectMatch(req, res) {
       targetId: match._id
     });
 
-    req.app.get('io').emit('match:rejected', match);
-    res.json(match);
+    const io = req.app.get('io');
+    io.emit('match:rejected', match);
+
+    const organ = match.organ;
+    let requeuedMatches = [];
+
+    if (organ && organ.status === 'proposed') {
+      const remainingProposals = await Match.countDocuments({
+        organ: organ._id,
+        status: 'proposed'
+      });
+
+      if (remainingProposals === 0) {
+        organ.status = 'available';
+        await organ.save();
+
+        await logAction({
+          actorName: 'system:matching-engine',
+          actorHospital: organ.sourceHospital,
+          action: 'ORGAN_REQUEUED',
+          targetType: 'Organ',
+          targetId: organ._id,
+          metadata: { reason: 'all proposed matches rejected' }
+        });
+
+        io.emit('organ:new', organ); // reuse the same event the frontend already refreshes on
+
+        // Immediately re-run matching against the current waiting-recipient
+        // pool, so the organ doesn't just sit idle until an unrelated event
+        // (like a new recipient registering) happens to reconsider it.
+        requeuedMatches = await runMatchingForOrgan(organ, io);
+      }
+    }
+
+    res.json({ match, requeuedMatches });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

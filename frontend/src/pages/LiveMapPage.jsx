@@ -86,18 +86,14 @@ export default function LiveMapPage() {
 
   return (
     <div className="live-map-page">
-      <div className="page-header">
-        <h1>Live Network Map</h1>
-        <p className="muted">
-          Hospital nodes and simulated organ transports across the network.
-          Transport movement is simulated (linear interpolation over the
-          predicted ETA) for demonstration — it is not connected to a real
-          GPS/vehicle tracking provider.
-        </p>
-      </div>
-
       <div className="live-map-layout">
         <aside className="map-sidebar">
+          <div className="map-title">
+            <h1>Live Network Map</h1>
+            <p className="muted">
+              Simulated organ transports across the hospital network — not real GPS tracking.
+            </p>
+          </div>
           <div className="stat-card">
             <div className="stat-row">
               <span className="stat-label">

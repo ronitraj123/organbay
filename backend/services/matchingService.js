@@ -116,4 +116,98 @@ async function runMatchingForOrgan(organ, io) {
   return createdMatches;
 }
 
-module.exports = { runMatchingForOrgan };
+/**
+ * Mirror of runMatchingForOrgan, but triggered when a NEW RECIPIENT is
+ * registered. Without this, matching was one-directional: an organ
+ * listed before a compatible recipient existed would never be
+ * reconsidered once that recipient showed up, since nothing re-scans
+ * existing available organs on recipient creation. This closes that gap.
+ *
+ * Finds available organs of the needed type, scores each against this
+ * one recipient, and proposes matches for the top-ranked candidate
+ * organ(s) -- symmetric logic to the organ-triggered path, just
+ * starting from the other side of the pair.
+ */
+async function runMatchingForRecipient(recipient, io) {
+  const emergency = await EmergencySettings.findOne();
+  const isEmergency = !!(emergency && emergency.active);
+  const candidateLimit = isEmergency ? EMERGENCY_MODE_CANDIDATE_LIMIT : NORMAL_MODE_CANDIDATE_LIMIT;
+
+  const availableOrgans = await Organ.find({
+    organType: recipient.organNeeded,
+    status: 'available'
+  }).populate('sourceHospital');
+
+  const scored = availableOrgans
+    .map((organ) => {
+      const compat = computeCompatibility(organ, recipient);
+      return { organ, compat };
+    })
+    .filter((entry) => entry.compat.bloodTypeCompatible)
+    .sort((a, b) => b.compat.compatibilityIndex - a.compat.compatibilityIndex);
+
+  const topCandidates = scored.slice(0, candidateLimit);
+  const destHospital = await recipient.populate('hospital').then((r) => r.hospital);
+
+  const createdMatches = [];
+
+  for (const { organ, compat } of topCandidates) {
+    const sourceHospital = organ.sourceHospital;
+
+    const etaResult = await predictEta({
+      origin: sourceHospital.location,
+      destination: destHospital.location,
+      organType: organ.organType
+    });
+
+    const match = await Match.create({
+      organ: organ._id,
+      recipient: recipient._id,
+      bloodTypeCompatible: compat.bloodTypeCompatible,
+      compatibilityIndex: compat.compatibilityIndex,
+      hlaOverlapPercent: compat.hlaOverlapPercent,
+      predictedEtaMinutes: etaResult.predictedEtaMinutes,
+      etaSource: etaResult.source,
+      distanceKm: etaResult.distanceKm,
+      emergencyMatch: isEmergency,
+      status: 'proposed'
+    });
+
+    await logAction({
+      actorName: 'system:matching-engine',
+      actorHospital: sourceHospital._id,
+      action: 'MATCH_PROPOSED',
+      targetType: 'Match',
+      targetId: match._id,
+      metadata: {
+        organType: organ.organType,
+        compatibilityIndex: compat.compatibilityIndex,
+        emergency: isEmergency,
+        triggeredBy: 'recipient-registration'
+      }
+    });
+
+    // An organ can only go to one recipient -- mark it proposed so it
+    // stops showing up as available and won't be double-proposed by a
+    // second recipient registration before this one is resolved.
+    if (organ.status === 'available') {
+      organ.status = 'proposed';
+      await organ.save();
+    }
+
+    const populatedMatch = await match.populate([
+      { path: 'organ', populate: { path: 'sourceHospital' } },
+      { path: 'recipient', populate: { path: 'hospital' } }
+    ]);
+
+    createdMatches.push(populatedMatch);
+
+    if (io) {
+      io.to(`hospital:${destHospital._id}`).emit('match:proposed', populatedMatch);
+    }
+  }
+
+  return createdMatches;
+}
+
+module.exports = { runMatchingForOrgan, runMatchingForRecipient };

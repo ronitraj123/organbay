@@ -7,6 +7,7 @@ const { Server } = require('socket.io');
 
 const connectDB = require('./config/db');
 const { initSocketHandler } = require('./sockets/socketHandler');
+const { resumeAllInTransitTransports } = require('./sockets/transportSimulator');
 
 const authRoutes = require('./routes/authRoutes');
 const hospitalRoutes = require('./routes/hospitalRoutes');
@@ -55,7 +56,13 @@ const PORT = process.env.PORT || 5000;
 
 connectDB()
   .then(() => {
-    server.listen(PORT, () => console.log(`[server] OrganBay backend listening on port ${PORT}`));
+    server.listen(PORT, () => {
+      console.log(`[server] OrganBay backend listening on port ${PORT}`);
+      // Recover any transports left mid-flight from before a restart --
+      resumeAllInTransitTransports(io).catch((err) =>
+        console.error('[server] Failed to resume in-transit transports:', err.message)
+      );
+    });
   })
   .catch((err) => {
     console.error('[server] Failed to start:', err.message);

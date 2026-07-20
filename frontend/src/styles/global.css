@@ -221,6 +221,18 @@ tr:hover td { background: var(--canvas); }
   border: 1px solid rgba(15,157,140,0.2);
 }
 
+.scope-toggle-row { display: flex; align-items: center; gap: 14px; margin: 8px 0 18px; }
+.scope-toggle {
+  display: inline-flex; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 20px; padding: 3px; box-shadow: var(--shadow-card);
+}
+.scope-toggle button {
+  border: none; background: transparent; padding: 6px 16px; border-radius: 16px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+  transition: all 0.15s;
+}
+.scope-toggle button.active { background: var(--ink); color: white; }
+
 /* ---------- Match cards ---------- */
 .match-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 28px; }
 .match-card {
@@ -286,6 +298,9 @@ tr:hover td { background: var(--canvas); }
 
 /* ---------- Live map ---------- */
 .live-map-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; align-items: start; }
+.map-title { margin-bottom: 2px; }
+.map-title h1 { font-size: 21px; line-height: 1.2; margin-bottom: 6px; }
+.map-title p { font-size: 12.5px; line-height: 1.5; }
 .map-sidebar { display: flex; flex-direction: column; gap: 16px; }
 .stat-card {
   background: var(--surface); border-radius: var(--radius-lg); padding: 16px 18px;

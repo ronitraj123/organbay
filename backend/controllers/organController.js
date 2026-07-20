@@ -5,6 +5,10 @@ const { logAction } = require('../services/auditLogger');
 async function listOrgans(req, res) {
   const filter = {};
   if (req.query.status) filter.status = req.query.status;
+  // Optional scoping to a single hospital's own listings -- omitted by
+  // default so coordinators see the full network (see README's design
+  // note on network-wide visibility).
+  if (req.query.hospital) filter.sourceHospital = req.query.hospital;
   const organs = await Organ.find(filter).populate('sourceHospital').sort({ createdAt: -1 });
   res.json(organs);
 }
