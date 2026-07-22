@@ -6,6 +6,7 @@ const Transport = require('../models/Transport');
 const { logAction } = require('../services/auditLogger');
 const { startSimulatedTransport } = require('../sockets/transportSimulator');
 const { runMatchingForOrgan } = require('../services/matchingService');
+const { sendToHospitalCoordinators } = require('../services/emailService');
 
 async function listMatches(req, res) {
   const filter = {};
@@ -17,21 +18,7 @@ async function listMatches(req, res) {
   res.json(matches);
 }
 
-/**
- * Accepting a match touches five things that all need to succeed or fail
- * together: the Match's own status, the Organ's status, the Recipient's
- * status, any competing proposed Matches for the same organ, and the new
- * Transport record. A partial write here (e.g. organ marked in_transit
- * but no Transport created) would be a real data-integrity bug, not just
- * a cosmetic one -- so this whole block runs inside a MongoDB
- * multi-document transaction (session), and rolls back atomically if any
- * step fails. This is deliberate: MongoDB was chosen for this project for
- * schema flexibility during rapid iteration, but the state-transition
- * writes specifically use ACID transactions rather than relying on
- * document-level atomicity alone. See README.md "Why MongoDB?" for the
- * full design rationale, including when a relational store would be the
- * better production choice.
- */
+
 async function acceptMatch(req, res) {
   const session = await mongoose.startSession();
   try {
@@ -97,6 +84,22 @@ async function acceptMatch(req, res) {
 
     // Begin simulated real-time movement toward the destination hospital.
     startSimulatedTransport(io, resultTransport, resultMatch.predictedEtaMinutes || 30);
+
+    // Confirmation emails to both hospitals -- less time-critical than
+    // the "match proposed" notification, but useful confirmation that
+    // transport has actually started.
+    sendToHospitalCoordinators(
+      resultMatch.organ.sourceHospital._id,
+      `OrganBay: ${resultMatch.organ.organType} match accepted -- transport starting`,
+      `<p>Your ${resultMatch.organ.organType} listing has been accepted by <strong>${resultMatch.recipient.hospital.name}</strong> for recipient <strong>${resultMatch.recipient.displayId}</strong>.</p>
+       <p>Simulated transport tracking is now live on the OrganBay Live Map.</p>`
+    );
+    sendToHospitalCoordinators(
+      resultMatch.recipient.hospital._id,
+      `OrganBay: ${resultMatch.organ.organType} transport confirmed for ${resultMatch.recipient.displayId}`,
+      `<p>You've accepted a ${resultMatch.organ.organType} (${resultMatch.organ.bloodType}) from <strong>${resultMatch.organ.sourceHospital.name}</strong> for recipient <strong>${resultMatch.recipient.displayId}</strong>.</p>
+       <p>Predicted arrival in ~${resultMatch.predictedEtaMinutes || 30} minutes. Track it live on the OrganBay Live Map.</p>`
+    );
 
     res.json({ match: resultMatch, transport: resultTransport });
   } catch (err) {

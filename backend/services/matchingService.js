@@ -5,6 +5,7 @@ const EmergencySettings = require('../models/EmergencySettings');
 const { computeCompatibility } = require('./compatibilityEngine');
 const { predictEta } = require('./mlClient');
 const { logAction } = require('./auditLogger');
+const { sendToHospitalCoordinators } = require('./emailService');
 
 // In normal mode, only propose matches to this many top-ranked recipients.
 const NORMAL_MODE_CANDIDATE_LIMIT = 3;
@@ -106,6 +107,18 @@ async function runMatchingForOrgan(organ, io) {
     if (io) {
       io.to(`hospital:${destHospital._id}`).emit('match:proposed', populatedMatch);
     }
+
+    // Fire-and-forget email to the recipient hospital's coordinators --
+    // the "offline" notification channel. Never awaited/blocking: a
+    // failed or unconfigured email must not affect the matching flow.
+    sendToHospitalCoordinators(
+      destHospital._id,
+      `OrganBay: ${organ.organType} match proposed for ${recipient.displayId}`,
+      `<p>A <strong>${organ.organType}</strong> (${organ.bloodType}) from <strong>${sourceHospital.name}</strong> has been proposed for recipient <strong>${recipient.displayId}</strong> at your hospital.</p>
+       <p>Demonstration compatibility index: <strong>${compat.compatibilityIndex}/100</strong> &middot; Predicted transport ETA: <strong>${etaResult.predictedEtaMinutes} minutes</strong>.</p>
+       <p>Log in to OrganBay to accept or reject this match.</p>
+       <p style="color:#888;font-size:12px;">This is a demonstration project. Compatibility and ETA figures are simplified for demo purposes and are not clinically valid.</p>`
+    );
   }
 
   if (organ.status === 'available' && createdMatches.length > 0) {
@@ -116,18 +129,7 @@ async function runMatchingForOrgan(organ, io) {
   return createdMatches;
 }
 
-/**
- * Mirror of runMatchingForOrgan, but triggered when a NEW RECIPIENT is
- * registered. Without this, matching was one-directional: an organ
- * listed before a compatible recipient existed would never be
- * reconsidered once that recipient showed up, since nothing re-scans
- * existing available organs on recipient creation. This closes that gap.
- *
- * Finds available organs of the needed type, scores each against this
- * one recipient, and proposes matches for the top-ranked candidate
- * organ(s) -- symmetric logic to the organ-triggered path, just
- * starting from the other side of the pair.
- */
+
 async function runMatchingForRecipient(recipient, io) {
   const emergency = await EmergencySettings.findOne();
   const isEmergency = !!(emergency && emergency.active);
@@ -205,6 +207,15 @@ async function runMatchingForRecipient(recipient, io) {
     if (io) {
       io.to(`hospital:${destHospital._id}`).emit('match:proposed', populatedMatch);
     }
+
+    sendToHospitalCoordinators(
+      destHospital._id,
+      `OrganBay: ${organ.organType} match proposed for ${recipient.displayId}`,
+      `<p>A <strong>${organ.organType}</strong> (${organ.bloodType}) from <strong>${sourceHospital.name}</strong> has been proposed for recipient <strong>${recipient.displayId}</strong> at your hospital.</p>
+       <p>Demonstration compatibility index: <strong>${compat.compatibilityIndex}/100</strong> &middot; Predicted transport ETA: <strong>${etaResult.predictedEtaMinutes} minutes</strong>.</p>
+       <p>Log in to OrganBay to accept or reject this match.</p>
+       <p style="color:#888;font-size:12px;">This is a demonstration project. Compatibility and ETA figures are simplified for demo purposes and are not clinically valid.</p>`
+    );
   }
 
   return createdMatches;

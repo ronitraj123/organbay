@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import EmergencyBanner from './components/EmergencyBanner.jsx';
+import NotificationManager from './components/NotificationManager.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import MatchesPage from './pages/MatchesPage.jsx';
@@ -21,6 +22,7 @@ export default function App() {
   return (
     <div className="app-shell">
       {user && <Navbar />}
+      {user && <NotificationManager />}
       <EmergencyBanner />
       <main className="app-content">
         <Routes>
