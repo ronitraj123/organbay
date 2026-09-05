@@ -80,7 +80,7 @@ flowchart LR
     subgraph Gateway["Node.js + Express + Socket.IO (Render)"]
         API[REST API]
         WS[Socket.IO Server]
-        ENGINE[Compatibility Engine\n(deterministic, rule-based)]
+        ENGINE["Compatibility Engine<br/>(deterministic, rule-based)"]
         MATCH[Matching Service]
         SIM[Transport Simulator]
     end
