@@ -72,12 +72,7 @@ export default function LoginPage() {
             <button type="submit">Log in</button>
           </form>
 
-          <div className="login-hint">
-            <strong>Demo accounts:</strong> <code>coordinator1@organbay.demo</code> through{' '}
-            <code>coordinator20@organbay.demo</code>, password <code>Demo@1234</code>{' '}
-            (see README after running the seed script). Coordinator 1 is the
-            admin account that can toggle Emergency Mode.
-          </div>
+          
         </div>
       </div>
 

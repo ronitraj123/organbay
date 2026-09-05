@@ -13,7 +13,7 @@ import { useAuth } from './context/AuthContext.jsx';
 function RequireAuth({ children }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
-  return children;
+  return <main className="app-content">{children}</main>;
 }
 
 export default function App() {
@@ -24,51 +24,49 @@ export default function App() {
       {user && <Navbar />}
       {user && <NotificationManager />}
       <EmergencyBanner />
-      <main className="app-content">
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route
-            path="/"
-            element={
-              <RequireAuth>
-                <DashboardPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/matches"
-            element={
-              <RequireAuth>
-                <MatchesPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/live-map"
-            element={
-              <RequireAuth>
-                <LiveMapPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/emergency"
-            element={
-              <RequireAuth>
-                <EmergencyPage />
-              </RequireAuth>
-            }
-          />
-          <Route
-            path="/audit-log"
-            element={
-              <RequireAuth>
-                <AuditLogPage />
-              </RequireAuth>
-            }
-          />
-        </Routes>
-      </main>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route
+          path="/"
+          element={
+            <RequireAuth>
+              <DashboardPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/matches"
+          element={
+            <RequireAuth>
+              <MatchesPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/live-map"
+          element={
+            <RequireAuth>
+              <LiveMapPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/emergency"
+          element={
+            <RequireAuth>
+              <EmergencyPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/audit-log"
+          element={
+            <RequireAuth>
+              <AuditLogPage />
+            </RequireAuth>
+          }
+        />
+      </Routes>
     </div>
   );
 }
